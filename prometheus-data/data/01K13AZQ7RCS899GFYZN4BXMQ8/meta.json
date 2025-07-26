@@ -1,0 +1,17 @@
+{
+	"ulid": "01K13AZQ7RCS899GFYZN4BXMQ8",
+	"minTime": 1753401600000,
+	"maxTime": 1753408800000,
+	"stats": {
+		"numSamples": 2489599,
+		"numSeries": 6275,
+		"numChunks": 20014
+	},
+	"compaction": {
+		"level": 1,
+		"sources": [
+			"01K13AZQ7RCS899GFYZN4BXMQ8"
+		]
+	},
+	"version": 1
+}

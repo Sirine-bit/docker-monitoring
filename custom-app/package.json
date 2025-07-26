@@ -1,0 +1,13 @@
+{
+  "name": "custom-metrics-app",
+  "version": "1.0.0",
+  "description": "Custom app with Prometheus metrics",
+  "main": "index.js",
+  "dependencies": {
+    "express": "^4.18.2",
+    "prom-client": "^14.2.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

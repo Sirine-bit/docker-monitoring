@@ -1,0 +1,70 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  # cAdvisor - TOUS les conteneurs (avec/sans métriques custom)
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  # Node Exporter - Métriques système
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # Prometheus lui-même
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Docker Service Discovery - Conteneurs avec métriques custom
+  - job_name: 'docker-containers'
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 30s
+    
+    # Filtrer uniquement les conteneurs avec label monitored=true
+    relabel_configs:
+      # Garder seulement les conteneurs avec le label monitored=true
+      - source_labels: [__meta_docker_container_label_monitored]
+        regex: 'true'
+        action: keep
+      
+      # Utiliser le label prometheus_port ou port par défaut
+      - source_labels: [__meta_docker_container_label_prometheus_port]
+        target_label: __address__
+        regex: '(.+)'
+        replacement: '${1}'
+      
+      # Si pas de port spécifié, ignorer
+      - source_labels: [__meta_docker_container_label_prometheus_port]
+        regex: ''
+        action: drop
+      
+      # Ajouter le nom du conteneur comme label
+      - source_labels: [__meta_docker_container_name]
+        target_label: container_name
+        regex: '/?(.+)'
+        replacement: '${1}'
+      
+      # Ajouter l'image comme label
+      - source_labels: [__meta_docker_container_label_image]
+        target_label: image_name
+      
+      # Ajouter le chemin des métriques
+      - source_labels: [__meta_docker_container_label_metrics_path]
+        target_label: __metrics_path__
+        regex: '(.+)'
+        replacement: '${1}'
+      
+      # Si pas de chemin spécifié, utiliser /metrics par défaut
+      - source_labels: [__meta_docker_container_label_metrics_path]
+        target_label: __metrics_path__
+        regex: ''
+        replacement: '/metrics'
+      
+      # Construire l'adresse complète
+      - source_labels: [__meta_docker_network_ip, __meta_docker_container_label_prometheus_port]
+        target_label: __address__
+        regex: '([^:]+)(?::\d+)?;(.+)'
+        replacement: '${1}:${2}'
