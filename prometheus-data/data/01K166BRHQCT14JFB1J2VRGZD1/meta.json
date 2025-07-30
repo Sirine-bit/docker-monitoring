@@ -1,0 +1,17 @@
+{
+	"ulid": "01K166BRHQCT14JFB1J2VRGZD1",
+	"minTime": 1753617600185,
+	"maxTime": 1753624800000,
+	"stats": {
+		"numSamples": 2664687,
+		"numSeries": 7312,
+		"numChunks": 21796
+	},
+	"compaction": {
+		"level": 1,
+		"sources": [
+			"01K166BRHQCT14JFB1J2VRGZD1"
+		]
+	},
+	"version": 1
+}

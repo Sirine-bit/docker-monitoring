@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   prometheus:
     image: prom/prometheus:latest
@@ -11,10 +9,15 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
       - ./alert_rules.yml:/etc/prometheus/alert_rules.yml
       - ./prometheus-data:/prometheus
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--enable-feature=docker-service-discovery'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.enable-lifecycle'
+      - '--web.listen-address=0.0.0.0:9090'
+    restart: unless-stopped
     networks:
       - monitoring
 
@@ -26,6 +29,7 @@ services:
     pid: "host"
     command:
       - '--path.rootfs=/host'
+    restart: unless-stopped
     networks:
       - monitoring
 
@@ -39,6 +43,7 @@ services:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
       - /sys:/sys:ro
+    restart: unless-stopped
     networks:
       - monitoring
 
@@ -48,11 +53,13 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - GF_SECUTITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - ./grafana-data:/var/lib/grafana
+    restart: unless-stopped
     networks:
       - monitoring
+
   alertmanager:
     image: prom/alertmanager
     container_name: alertmanager
@@ -60,11 +67,10 @@ services:
       - "9093:9093"
     volumes:
       - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    restart: unless-stopped
     networks:
       - monitoring
 
 networks:
   monitoring:
     driver: bridge
-
-
