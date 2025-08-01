@@ -1,6 +1,9 @@
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+  external_labels:
+    cluster: 'desktop-monitoring'
+    region: 'local'
 
 rule_files:
   - "alert_rules.yml"
@@ -12,82 +15,72 @@ alerting:
           - alertmanager:9093
 
 scrape_configs:
-  # Prometheus local
+  # Service locaux du desktop
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
+        labels:
+          instance_type: 'prometheus-desktop'
 
-  # Node Exporter local
   - job_name: 'node-exporter'
     static_configs:
       - targets: ['node-exporter:9100']
+        labels:
+          instance_type: 'desktop'
 
-  # cAdvisor local
   - job_name: 'cadvisor'
     static_configs:
       - targets: ['cadvisor:8080']
-
+        labels:
+          instance_type: 'desktop'
   # Docker containers avec métriques custom (local)
+ 
   - job_name: 'docker-containers'
     docker_sd_configs:
       - host: unix:///var/run/docker.sock
-        refresh_interval: 30s
+        refresh_interval: 5s
+        filters:
+          - name: label
+            values: ["monitored=true"]
+    
     relabel_configs:
-      # Garder seulement les conteneurs avec le label monitored=true
-      - source_labels: [__meta_docker_container_label_monitored]
-        regex: 'true'
-        action: keep
-      # Construire l'adresse avec l'IP du réseau Docker et le port
-      - source_labels: [__meta_docker_network_ip, __meta_docker_container_label_prometheus_port]
-        regex: '([^;]+);(.+)'
+      # Extraire le port depuis le label prometheus_port
+      - source_labels: [__meta_docker_container_label_prometheus_port]
+        target_label: __tmp_port
+        regex: (.+)
+        replacement: ${1}
+      
+      # Construire l'adresse avec l'IP du réseau desktop_monitoring et le port
+      - source_labels: [__meta_docker_container_network_ip_docker-monitoring_monitoring, __tmp_port]
         target_label: __address__
-        replacement: '${1}:${2}'
-      # Nom du conteneur
+        regex: ([^;]+);(.+)
+        replacement: ${1}:${2}
+      
+      # Définir le chemin des métriques depuis le label
+      - source_labels: [__meta_docker_container_label_metrics_path]
+        target_label: __metrics_path__
+        regex: (.+)
+        replacement: ${1}
+      
+      # Définir le nom de l'instance depuis le nom du conteneur
       - source_labels: [__meta_docker_container_name]
-        target_label: container_name
-        regex: '/?(.+)'
-        replacement: '${1}'
-      # Chemin des métriques (défaut: /metrics)
-      - source_labels: [__meta_docker_container_label_metrics_path]
-        target_label: __metrics_path__
-        regex: '(.+)'
-        replacement: '${1}'
-      # Défaut /metrics si pas spécifié
-      - source_labels: [__meta_docker_container_label_metrics_path]
-        regex: '^$'
-        target_label: __metrics_path__
-        replacement: '/metrics'
-  # Federation avec la VM Server (nouveaux ports)
-  - job_name: 'prometheus-server'
+        target_label: instance
+        regex: /(.+)
+        replacement: ${1}
+      
+      # Ajouter le nom de l'image comme label
+      - source_labels: [__meta_docker_container_label_image]
+        target_label: image
+        regex: (.+)
+        replacement: ${1}
+      
+      # Supprimer les targets sans adresse valide
+      - source_labels: [__address__]
+        regex: ':.*'
+        action: drop
+  # Connexion au prometheus central (pour monitorer le fédérateur et voir son état)
+  - job_name: 'prometheus-central'
     static_configs:
       - targets: ['192.168.100.73:19090']
-  - job_name: 'node-exporter-server'
-    static_configs:
-      - targets: ['192.168.100.73:19100']
-  - job_name: 'cadvisor-server'
-    static_configs:
-      - targets: ['192.168.100.73:18080']
-  # FEDERATION - Récupération des données du serveur Ubuntu
-  - job_name: 'federate-ubuntu-server'
-    scrape_interval: 15s
-    honor_labels: true
-    metrics_path: '/federate'
-    params:
-      'match[]':
-        - '{job=~"prometheus-server|node-exporter-server|cadvisor-server"}'
-        - '{__name__=~"node_.*"}'           # Toutes les métriques node_exporter
-        - '{__name__=~"container_.*"}'       # Toutes les métriques container
-        - '{__name__=~"up"}'                 # Status des services
-        - '{__name__=~"prometheus_.*"}'      # Métriques Prometheus
-        - '{job=~".*"}'                      # Toutes les métriques de tous les jobs
-    static_configs:
-      - targets:
-          - '192.168.100.73:19090'  # IP de votre serveur Ubuntu(change à chaque changement du wifi)
-    relabel_configs:
-      - source_labels: ['__address__']
-        target_label: 'federated_from'
-        replacement: 'ubuntu-server'
-      - source_labels: ['__address__']
-        target_label: 'instance'
-        regex: '(.+):.*'
-        replacement: '${1}'
+        labels:
+          instance_type: 'prometheus-central' 

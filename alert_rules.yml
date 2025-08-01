@@ -27,3 +27,13 @@ groups:
         annotations:
           summary: "This is a simulated alert"
           description: "This alert is used to test the alerting pipeline" 
+
+      - alert: FederationDown
+        expr: up{job="prometheus-central"} == 0
+        for: 1m
+        labels:
+          serverity: critical
+          source: federation
+        annotations:
+          summary: "Federation to central Prometheus is down"
+          description: "Cannot reach central Prometheus Server"

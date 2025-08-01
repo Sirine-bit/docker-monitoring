@@ -150,7 +150,7 @@ docker run -d \
     --label "image=custom-metrics-app" \
     --label "prometheus_port=8080" \
     --label "metrics_path=/metrics" \
-    --network desktop_monitoring \
+    --network docker-monitoring_monitoring \
     --name "custom-app-$(date +%s)" \
     custom-metrics-app:latest
 
@@ -190,7 +190,7 @@ if [ ! -z "$CUSTOM_CONTAINER" ]; then
         echo "🚀 Sending 10 requests to generate metrics..."
         
         for i in {1..10}; do
-            docker run --rm --network desktop_monitoring alpine/curl:latest \
+            docker run --rm --network docker-monitoring_monitoring alpine/curl:latest \
                 curl -s "http://$CONTAINER_IP:8080/" > /dev/null
             echo -n "."
         done
@@ -206,7 +206,7 @@ docker run -d \
     --label "image=python-metrics-app" \
     --label "prometheus_port=8000" \
     --label "metrics_path=/metrics" \
-    --network desktop_monitoring \
+    --network docker-monitoring_monitoring \
     -p 8082:8000 \
     --name "python-app-with-metrics-$(date +%s)" \
     --entrypoint="" \
@@ -235,9 +235,9 @@ if __name__ == '__main__':
 
 echo " Creating containers that expose Prometheus metrics..."
 
-docker run -d --label monitored=true --label "image=nginx-exporter" --label "prometheus_port=9113" --label "metrics_path=/metrics"  --network desktop_monitoring --name "nginx-exporter-$(date +%s)" nginx/nginx-prometheus-exporter:latest
+docker run -d --label monitored=true --label "image=nginx-exporter" --label "prometheus_port=9113" --label "metrics_path=/metrics"  --network docker-monitoring_monitoring --name "nginx-exporter-$(date +%s)" nginx/nginx-prometheus-exporter:latest
 
-docker run -d --label monitored=true --label "image=redis-exporter" --label "prometheus_port=9121" --label "metrics_path=/metrics" --network desktop_monitoring --name "redis-exporter-$(date +%s)" oliver006/redis_exporter:latest
+docker run -d --label monitored=true --label "image=redis-exporter" --label "prometheus_port=9121" --label "metrics_path=/metrics" --network docker-monitoring_monitoring --name "redis-exporter-$(date +%s)" oliver006/redis_exporter:latest
 
 echo "containers with REAL prometheus metrics created!"
 echo ""
