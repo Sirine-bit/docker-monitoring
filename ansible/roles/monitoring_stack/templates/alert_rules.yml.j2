@@ -1,0 +1,39 @@
+groups:
+  - name: container-health
+    rules:
+      - alert: NodeDown
+        expr: up == 0
+        for: 1m
+        labels:
+          serverity: critical
+        annotations:
+          summary: "Instance {{ $labels.instance }} is down"
+          description: "Prometheus target {{ $labels.instance }} is unreachable."
+
+      - alert: HighCPUUsage
+        expr: rate(container_cpu_usage_seconds_total{container!=""}[1m]) * 100 > 80
+        for: 1m
+        labels:
+          serverity: warning
+        annotations:
+          summary: "High CPU usage on container {{ $labels.container }}"
+          description: "Container {{ $labels.container }} is using high CPU for 1 minute (> 80%)"
+
+      - alert: SimulatedAlert
+        expr: vector(1)
+        for: 30s
+        labels:
+          serverity: info
+        annotations:
+          summary: "This is a simulated alert"
+          description: "This alert is used to test the alerting pipeline" 
+
+      - alert: FederationDown
+        expr: up{job="prometheus-central"} == 0
+        for: 1m
+        labels:
+          serverity: critical
+          source: federation
+        annotations:
+          summary: "Federation to central Prometheus is down"
+          description: "Cannot reach central Prometheus Server"
