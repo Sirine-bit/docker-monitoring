@@ -1,38 +1,29 @@
 groups:
-  - name: basic-alerts
+  - name: alert.rules
     rules:
-      - alert: ServiceDown
+      - alert: InstanceDown
         expr: up == 0
         for: 1m
         labels:
           severity: critical
         annotations:
-          summary: {% raw %}"Service is down on {{ $labels.instance }}"{% endraw %}
-          description: {% raw %}"{{ $labels.job }} service is down on {{ $labels.instance }} for more than 1 minute"{% endraw %}
+          summary: "Instance {{ '{{ $labels.instance }}' }} down"
+          description: "{{ '{{ $labels.instance }}' }} of job {{ '{{ $labels.job }}' }} has been down for more than 1 minute."
 
       - alert: HighCPUUsage
-        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > {{ cpu_alert_threshold | default(80) }}
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
         for: 2m
         labels:
           severity: warning
         annotations:
-          summary: {% raw %}"High CPU usage detected on {{ $labels.instance }}"{% endraw %}
-          description: "CPU usage is above {{ cpu_alert_threshold | default(80) }}% for more than 2 minutes"
+          summary: "High CPU usage on {{ '{{ $labels.instance }}' }}"
+          description: "CPU usage is above 90% (current value: {{ '{{ $value }}' }}%) on {{ '{{ $labels.instance }}' }}."
 
-      - alert: HighMemoryUsage
-        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > {{ memory_alert_threshold | default(80) }}
+      - alert: LowDiskSpace
+        expr: (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"} * 100) < 10
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: {% raw %}"High memory usage detected on {{ $labels.instance }}"{% endraw %}
-          description: "Memory usage is above {{ memory_alert_threshold | default(80) }}% for more than 5 minutes"
-
-      - alert: HighDiskUsage
-        expr: (1 - (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"})) * 100 > {{ disk_alert_threshold | default(85) }}
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: {% raw %}"High disk usage detected on {{ $labels.instance }}"{% endraw %}
-          description: "Disk usage is above {{ disk_alert_threshold | default(85) }}% for more than 5 minutes"
+          summary: "Low disk space on {{ '{{ $labels.instance }}' }}"
+          description: "Disk space is below 10% on {{ '{{ $labels.instance }}' }} (mount point: {{ '{{ $labels.mountpoint }}' }})."
