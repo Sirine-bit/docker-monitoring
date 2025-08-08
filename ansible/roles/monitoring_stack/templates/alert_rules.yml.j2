@@ -1,39 +1,38 @@
 groups:
-  - name: container-health
+  - name: basic-alerts
     rules:
-      - alert: NodeDown
+      - alert: ServiceDown
         expr: up == 0
         for: 1m
         labels:
-          serverity: critical
+          severity: critical
         annotations:
-          summary: "Instance {{ $labels.instance }} is down"
-          description: "Prometheus target {{ $labels.instance }} is unreachable."
+          summary: {% raw %}"Service is down on {{ $labels.instance }}"{% endraw %}
+          description: {% raw %}"{{ $labels.job }} service is down on {{ $labels.instance }} for more than 1 minute"{% endraw %}
 
       - alert: HighCPUUsage
-        expr: rate(container_cpu_usage_seconds_total{container!=""}[1m]) * 100 > 80
-        for: 1m
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > {{ cpu_alert_threshold | default(80) }}
+        for: 2m
         labels:
-          serverity: warning
+          severity: warning
         annotations:
-          summary: "High CPU usage on container {{ $labels.container }}"
-          description: "Container {{ $labels.container }} is using high CPU for 1 minute (> 80%)"
+          summary: {% raw %}"High CPU usage detected on {{ $labels.instance }}"{% endraw %}
+          description: "CPU usage is above {{ cpu_alert_threshold | default(80) }}% for more than 2 minutes"
 
-      - alert: SimulatedAlert
-        expr: vector(1)
-        for: 30s
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > {{ memory_alert_threshold | default(80) }}
+        for: 5m
         labels:
-          serverity: info
+          severity: warning
         annotations:
-          summary: "This is a simulated alert"
-          description: "This alert is used to test the alerting pipeline" 
+          summary: {% raw %}"High memory usage detected on {{ $labels.instance }}"{% endraw %}
+          description: "Memory usage is above {{ memory_alert_threshold | default(80) }}% for more than 5 minutes"
 
-      - alert: FederationDown
-        expr: up{job="prometheus-central"} == 0
-        for: 1m
+      - alert: HighDiskUsage
+        expr: (1 - (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"})) * 100 > {{ disk_alert_threshold | default(85) }}
+        for: 5m
         labels:
-          serverity: critical
-          source: federation
+          severity: warning
         annotations:
-          summary: "Federation to central Prometheus is down"
-          description: "Cannot reach central Prometheus Server"
+          summary: {% raw %}"High disk usage detected on {{ $labels.instance }}"{% endraw %}
+          description: "Disk usage is above {{ disk_alert_threshold | default(85) }}% for more than 5 minutes"

@@ -1,0 +1,21 @@
+---
+- name: Deploy monitoring stack on desktop VM
+  hosts: desktop
+  gather_facts: yes
+  vars_files:
+    - ../vault/secrets.yml
+    - ../group_vars/all.yml 
+  roles:
+    - common
+    - monitoring_stack
+  
+  post_tasks:
+    - name: Display access URLs
+      debug:
+        msg:
+          - " Monitoring stack deployed successfully!"
+          - " Prometheus: http://localhost:{{ monitoring.prometheus.port }}"
+          - " Grafana: http://localhost:{{ monitoring.grafana.port }} (admin/admin)"
+          - " Alertmanager: http://localhost:{{ monitoring.alertmanager.port }}"
+          - " Node Exporter: http://localhost:{{ monitoring.node_exporter.port }}/metrics"
+          - " cAdvisor: http://localhost:{{ monitoring.cadvisor.port }}"

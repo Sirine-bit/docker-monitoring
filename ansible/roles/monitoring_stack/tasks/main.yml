@@ -1,0 +1,81 @@
+---
+- name: Create configuration directory
+  file:
+    path: "{{ project_dir }}/configs"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+
+- name: Generate prometheus configuration
+  template:
+    src: prometheus.yml.j2
+    dest: "{{ project_dir }}/prometheus.yml"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+  notify: restart monitoring stack
+
+- name: Generate alertmanager configuration
+  template:
+    src: alertmanager.yml.j2
+    dest: "{{ project_dir }}/alertmanager.yml"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+  notify: restart monitoring stack
+
+- name: Generate alert rules
+  template:
+    src: alert_rules.yml.j2
+    dest: "{{ project_dir }}/alert_rules.yml"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+  notify: restart monitoring stack
+
+- name: Generate docker-compose file
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ project_dir }}/docker-compose.yml"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+  notify: restart monitoring stack
+
+- name: Create Docker volumes for persistent data
+  community.docker.docker_volume:
+    name: "{{ item }}"
+  loop:
+    - prometheus_data
+    - grafana_data
+    - alertmanager_data
+
+- name: Stop any existing monitoring stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ project_dir }}"
+    state: absent
+  ignore_errors: yes
+
+- name: Start monitoring stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ project_dir }}"
+    state: present
+    pull: "always"
+  register: compose_result
+
+- name: Display services status
+  debug:
+    msg: "Services started successfully"
+  when: compose_result is succeeded
+
+- name: Check docker containers status
+  command: docker compose ps
+  args:
+    chdir: "{{ project_dir }}"
+  register: docker_status
+  
+- name: Display docker containers status
+  debug:
+    msg: "{{ docker_status.stdout_lines }}"
+

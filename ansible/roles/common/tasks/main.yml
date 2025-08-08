@@ -1,0 +1,64 @@
+---
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 86400
+  become: yes
+# Install Docker Compose v2
+- name: Create Docker CLI plugins directory
+  file:
+    path: ~/.docker/cli-plugins
+    state: directory
+    mode: '0755'
+
+- name: Download Docker Compose v2
+  get_url:
+    url: "https://github.com/docker/compose/releases/download/{{ docker_compose_version }}/docker-compose-linux-x86_64"
+    dest: ~/.docker/cli-plugins/docker-compose
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Verify Docker Compose installation
+  command: docker compose version
+  register: compose_version
+  changed_when: false
+
+- name: Display Docker Compose version
+  debug:
+    msg: "{{ compose_version.stdout }}"
+- name: Install required packages
+  apt:
+    name:
+      - docker.io
+      - git
+      - curl
+      - wget
+      - python3-pip
+      - python3-docker
+    state: present
+    update_cache: yes
+  become: yes
+
+- name: Start and enable Docker service
+  systemd:
+    name: docker
+    state: started
+    enabled: yes
+  become: yes
+- name: Add user to docker group
+  user:
+    name: "{{ ansible_user }}"
+    groups: docker
+    append: yes
+  become: yes
+  notify: restart docker
+
+- name: Create project directory
+  file:
+    path: "/home/{{ ansible_user }}/docker-monitoring"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+
