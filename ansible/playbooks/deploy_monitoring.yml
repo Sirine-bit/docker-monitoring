@@ -1,21 +1,75 @@
 ---
-- name: Deploy monitoring stack on desktop VM
-  hosts: desktop
+- name: Deploy local monitoring on target nodes
+  hosts: all:!control
   gather_facts: yes
   vars_files:
     - ../vault/secrets.yml
-    - ../group_vars/all.yml 
+    - ../group_vars/all.yml
+  roles:
+    - prometheus_local
+  
+  post_tasks:
+    - name: Verify prometheus local is accessible
+      uri:
+        url: "http://{{ ansible_host }}:{{ prometheus_local_port }}/-/healthy"
+        method: GET
+      register: prometheus_targets
+      retries: 5
+      delay: 30
+      ignore_errors: yes
+
+    - name: Display local prometheus status
+      debug:
+        msg: "Prometheus local accessible at http://{{ ansible_host }}:{{ prometheus_local_port }}"
+      when: prometheus_targets is succeeded
+
+- name: Deploy federation monitoring on control node
+  hosts: control
+  gather_facts: yes
+  vars_files:
+    - ../vault/secrets.yml
+    - ../group_vars/all.yml
   roles:
     - common
     - monitoring_stack
+    - prometheus_federator
   
   post_tasks:
-    - name: Display access URLs
+    - name: Verify federation endpoints
+      uri:
+        url: "http://localhost:{{ monitoring.prometheus.port }}/api/v1/targets"
+        method: GET
+      register: federation_targets
+      retries: 5
+      delay: 30
+      ignore_errors: yes
+      
+    - name: Display main monitoring URLs
       debug:
         msg:
-          - " Monitoring stack deployed successfully!"
-          - " Prometheus: http://localhost:{{ monitoring.prometheus.port }}"
-          - " Grafana: http://localhost:{{ monitoring.grafana.port }} (admin/admin)"
-          - " Alertmanager: http://localhost:{{ monitoring.alertmanager.port }}"
-          - " Node Exporter: http://localhost:{{ monitoring.node_exporter.port }}/metrics"
-          - " cAdvisor: http://localhost:{{ monitoring.cadvisor.port }}"
+          - "=== Federation Monitoring URLs ==="
+          - "Main Prometheus (Federation): http://localhost:{{ monitoring.prometheus.port }}"
+          - "Grafana Dashboard: http://localhost:{{ monitoring.grafana.port }}"
+          - "Alertmanager: http://localhost:{{ monitoring.alertmanager.port }}"
+
+    - name: Collect remote prometheus instances info
+      set_fact:
+        remote_instances: "{{ remote_instances | default([]) + [{'host': item, 'ip': hostvars[item]['ansible_host'], 'port': hostvars[item]['prometheus_local_port'] | default(9090)}] }}"
+      loop: "{{ groups['all'] }}"
+      when: 
+        - item != inventory_hostname 
+        - hostvars[item]['prometheus_local'] is defined
+        - hostvars[item]['prometheus_local'] | bool
+
+    - name: Display remote prometheus instances
+      debug:
+        msg: "{{ item.host }}: http://{{ item.ip }}:{{ item.port }}"
+      loop: "{{ remote_instances | default([]) }}"
+      when: remote_instances is defined
+
+    - name: Display federation summary
+      debug:
+        msg:
+          - "=== Federation Setup Complete ==="
+          - "Total federated instances: {{ (remote_instances | default([])) | length }}"
+          - "Federation status: {{ 'SUCCESS' if federation_targets is succeeded else 'FAILED' }}"

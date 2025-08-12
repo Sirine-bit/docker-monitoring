@@ -1,0 +1,19 @@
+---
+- name: restart monitoring stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ project_dir }}"
+    state: absent
+  ignore_errors: yes
+
+- name: restart monitoring stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ project_dir }}"
+    state: present
+    pull: "always"
+  delay: 5
+
+- name: reload prometheus federation config
+  uri:
+    url: "http://localhost:{{ monitoring.prometheus.port }}/-/reload"
+    method: POST
+  ignore_errors: yes

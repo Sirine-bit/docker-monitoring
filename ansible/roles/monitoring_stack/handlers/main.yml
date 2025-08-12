@@ -1,13 +1,9 @@
 ---
 - name: restart monitoring stack
-  community.docker.docker_compose_v2:
-    project_src: "{{ project_dir }}"
-    state: absent
-  ignore_errors: yes
-
-- name: restart monitoring stack
-  community.docker.docker_compose_v2:
-    project_src: "{{ project_dir }}"
-    state: present
-    pull: "always"
-  delay: 5
+  shell: |
+    docker-compose down
+    sleep 5
+    docker-compose up -d
+  args:
+    chdir: "{{ project_dir }}"
+  listen: "restart monitoring stack"

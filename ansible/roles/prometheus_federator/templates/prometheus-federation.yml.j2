@@ -1,0 +1,60 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'federation-control'
+    region: 'local'
+
+rule_files:
+  - "alert_rules.yml"
+  - "federation_alert_rules.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - "alertmanager:9093"
+
+scrape_configs:
+  # Scraping local monitoring stack
+  - job_name: 'prometheus-federator'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'node-exporter-control'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  - job_name: 'cadvisor-control'
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  # Federation depuis tous les Prometheus locaux
+  {% for group_name in groups %}
+  {% if group_name not in ['control', 'ungrouped'] %}
+  {% for host in groups[group_name] %}
+  {% if hostvars[host]['prometheus_local'] is defined and hostvars[host]['prometheus_local'] %}
+  - job_name: 'federation-{{ host }}'
+    scrape_interval: 30s
+    honor_labels: true
+    metrics_path: '/federate'
+    params:
+      'match[]':
+        - '{job=~"prometheus|node-exporter|cadvisor|.*-exporter"}'
+        - 'up'
+        - 'node_load1'
+        - 'node_memory_MemAvailable_bytes'
+        - 'node_filesystem_free_bytes'
+        - 'container_cpu_usage_seconds_total'
+        - 'container_memory_usage_bytes'
+    static_configs:
+      - targets:
+        - '{{ hostvars[host]['ansible_host'] }}:{{ hostvars[host]['prometheus_local_port'] | default(9090) }}'
+        labels:
+          federated_from: '{{ host }}'
+          environment: '{{ hostvars[host]['deployment_env'] }}'
+          service_type: '{{ hostvars[host]['service_type'] | default("unknown") }}'
+  {% endif %}
+  {% endfor %}
+  {% endif %}
+  {% endfor %}

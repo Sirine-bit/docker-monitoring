@@ -1,0 +1,18 @@
+---
+- name: Update main prometheus config for federation
+  template:
+    src: prometheus-federation.yml.j2
+    dest: "{{ project_dir }}/prometheus.yml"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+  notify: restart monitoring stack
+
+- name: Generate federation alert rules
+  template:
+    src: federation_alert_rules.yml.j2
+    dest: "{{ project_dir }}/federation_alert_rules.yml"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+  notify: restart monitoring stack

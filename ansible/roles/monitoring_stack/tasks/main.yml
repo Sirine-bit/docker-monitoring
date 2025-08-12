@@ -44,38 +44,75 @@
   notify: restart monitoring stack
 
 - name: Create Docker volumes for persistent data
-  community.docker.docker_volume:
-    name: "{{ item }}"
+  shell: docker volume create {{ item }}
   loop:
     - prometheus_data
     - grafana_data
     - alertmanager_data
+  ignore_errors: yes
+  changed_when: false
+
+- name: Validate docker-compose configuration
+  shell: docker-compose config
+  args:
+    chdir: "{{ project_dir }}"
+  register: compose_config
+  changed_when: false
 
 - name: Stop any existing monitoring stack
-  community.docker.docker_compose_v2:
-    project_src: "{{ project_dir }}"
-    state: absent
+  shell: docker-compose down
+  args:
+    chdir: "{{ project_dir }}"
   ignore_errors: yes
+  changed_when: false
+
+- name: Pull latest images
+  shell: docker-compose pull
+  args:
+    chdir: "{{ project_dir }}"
+  register: pull_result
+  changed_when: "'Pulled' in pull_result.stdout or 'Downloaded' in pull_result.stdout"
 
 - name: Start monitoring stack
-  community.docker.docker_compose_v2:
-    project_src: "{{ project_dir }}"
-    state: present
-    pull: "always"
+  shell: docker-compose up -d
+  args:
+    chdir: "{{ project_dir }}"
   register: compose_result
 
-- name: Display services status
-  debug:
-    msg: "Services started successfully"
-  when: compose_result is succeeded
-
-- name: Check docker containers status
-  command: docker compose ps
+- name: Wait for services to be ready
+  shell: docker-compose ps
   args:
     chdir: "{{ project_dir }}"
   register: docker_status
-  
-- name: Display docker containers status
-  debug:
-    msg: "{{ docker_status.stdout_lines }}"
+  retries: 5
+  delay: 10
+  until: "'Up' in docker_status.stdout"
 
+- name: Display services status
+  debug:
+    msg: |
+      Monitoring Stack Status: {{ 'SUCCESS' if compose_result.rc == 0 else 'FAILED' }}
+      Services:
+      {{ docker_status.stdout }}
+
+- name: Check service health (optional)
+  uri:
+    url: "http://{{ ansible_host }}:{{ item.port }}"
+    method: GET
+    status_code: 200
+  register: health_check
+  ignore_errors: yes
+  loop:
+    - { service: "prometheus", port: "9090" }
+    - { service: "grafana", port: "3000" }
+    - { service: "alertmanager", port: "9093" }
+  when: ansible_host is defined
+
+- name: Display health check results
+  debug:
+    msg: |
+      Health Check Results:
+      {% for result in health_check.results %}
+      {{ result.item.service }}: {{ 'HEALTHY' if result.status == 200 else 'UNHEALTHY' }}
+      {% endfor %}
+  when: health_check is defined and health_check.results is defined

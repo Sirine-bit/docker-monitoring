@@ -1,0 +1,17 @@
+---
+- name: Deploy base infrastructure on all nodes
+  hosts: all:!control
+  gather_facts: yes
+  vars_files:
+    - ../vault/secrets.yml
+    - ../group_vars/all.yml
+  roles:
+    - common
+  
+  tasks:
+    - name: Ensure Docker daemon is running
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+      become: yes

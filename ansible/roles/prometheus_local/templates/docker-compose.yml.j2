@@ -1,0 +1,130 @@
+version: '3.8'
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus-local
+    user: "root"
+    ports:
+      - "{{ prometheus_local_port }}:9090"
+    volumes:
+      - prometheus_local_data:/prometheus
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.listen-address=0.0.0.0:9090'
+      - '--web.external-url=http://{{ inventory_hostname }}:{{ prometheus_local_port }}'
+    restart: unless-stopped
+    networks:
+      - monitoring
+    labels:
+      - "monitored=true"
+      - "service_type=monitoring"
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($|/)'
+    pid: "host"
+    restart: unless-stopped
+    networks:
+      - monitoring
+    labels:
+      - "monitored=true"
+      - "service_type=system"
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    restart: unless-stopped
+    networks:
+      - monitoring
+    labels:
+      - "monitored=true"
+      - "service_type=docker"
+{% if service_type == 'web' %}
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:latest
+    container_name: nginx-exporter
+    ports:
+      - "9113:9113"
+    command:
+      - '-nginx.scrape-uri=http://nginx/nginx_status'
+    restart: unless-stopped
+    networks:
+      - monitoring
+    labels:
+      - "monitored=true"
+      - "service_type=nginx"
+{% endif %}
+
+{% if service_type == 'database' %}
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: postgres-exporter
+    ports:
+      - "9187:9187"
+    environment:
+      DATA_SOURCE_NAME: "postgresql://{{ db_user | default('postgres') }}:{{ db_password | default('postgres') }}@postgres:5432/{{ db_name | default('postgres') }}?sslmode=disable"
+    restart: unless-stopped
+    networks:
+      - monitoring
+    labels:
+      - "monitored=true"
+      - "service_type=postgresql"
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_USER: "{{ db_user | default('postgres') }}"
+      POSTGRES_PASSWORD: "{{ db_password | default('postgres') }}"
+      POSTGRES_DB: "{{ db_name | default('postgres') }}"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - monitoring
+    labels:
+      - "monitored=true"
+      - "service_type=database"
+{% endif %}
+
+volumes:
+  prometheus_local_data:
+{% if service_type == 'database' %}
+  postgres_data:
+{% endif %}
+
+networks:
+  monitoring:
+    driver: bridge

@@ -1,0 +1,85 @@
+---
+- name: Create prometheus local directory
+  file:
+    path: "{{ prometheus_local_dir }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+
+- name: Generate prometheus local configuration
+  template:
+    src: prometheus.yml.j2
+    dest: "{{ prometheus_local_dir }}/prometheus.yml"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+  notify: restart prometheus local
+
+- name: Generate docker-compose for prometheus local
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ prometheus_local_dir }}/docker-compose.yml"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+  notify: restart prometheus local
+
+- name: Validate docker-compose configuration
+  shell: docker-compose config
+  args:
+    chdir: "{{ prometheus_local_dir }}"
+  register: compose_config
+  changed_when: false
+
+- name: Stop existing containers (if any)
+  shell: docker-compose down
+  args:
+    chdir: "{{ prometheus_local_dir }}"
+  ignore_errors: yes
+  changed_when: false
+
+- name: Pull latest images
+  shell: docker-compose pull
+  args:
+    chdir: "{{ prometheus_local_dir }}"
+  register: pull_result
+  changed_when: "'Pulled' in pull_result.stdout or 'Downloaded' in pull_result.stdout"
+
+- name: Start prometheus stack
+  shell: docker-compose up -d
+  args:
+    chdir: "{{ prometheus_local_dir }}"
+  register: deploy_result
+
+- name: Wait for services to be ready
+  shell: docker-compose ps
+  args:
+    chdir: "{{ prometheus_local_dir }}"
+  register: services_status
+  retries: 5
+  delay: 10
+  until: "'Up' in services_status.stdout"
+
+- name: Display deployment status
+  debug:
+    msg: |
+      Deployment Status: {{ 'SUCCESS' if deploy_result.rc == 0 else 'FAILED' }}
+      Services Status:
+      {{ services_status.stdout }}
+
+- name: Check if Prometheus is accessible
+  uri:
+    url: "http://{{ ansible_host }}:{{ prometheus_port | default('9090') }}"
+    method: GET
+    status_code: 200
+  register: prometheus_health
+  ignore_errors: yes
+  when: ansible_host is defined
+
+- name: Display health check result
+  debug:
+    msg: |
+      Prometheus Health Check: {{ 'PASSED' if prometheus_health is succeeded else 'FAILED' }}
+      {% if prometheus_health is failed %}Error: {{ prometheus_health.msg }}{% endif %}
+  when: ansible_host is defined

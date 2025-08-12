@@ -1,0 +1,8 @@
+---
+- name: restart prometheus local
+  shell: |
+    docker-compose down
+    docker-compose up -d
+  args:
+    chdir: "{{ prometheus_local_dir }}"
+  listen: "restart prometheus local"
