@@ -44,6 +44,7 @@
   notify: restart monitoring stack
 
 - name: Create Docker volumes for persistent data
+  become: true
   shell: docker volume create {{ item }}
   loop:
     - prometheus_data
@@ -53,34 +54,38 @@
   changed_when: false
 
 - name: Validate docker-compose configuration
-  shell: docker-compose config
+  shell: docker compose config
   args:
     chdir: "{{ project_dir }}"
   register: compose_config
   changed_when: false
 
 - name: Stop any existing monitoring stack
-  shell: docker-compose down
+  become: true
+  shell: docker compose down
   args:
     chdir: "{{ project_dir }}"
   ignore_errors: yes
   changed_when: false
 
 - name: Pull latest images
-  shell: docker-compose pull
+  become: true
+  shell: docker compose pull
   args:
     chdir: "{{ project_dir }}"
   register: pull_result
   changed_when: "'Pulled' in pull_result.stdout or 'Downloaded' in pull_result.stdout"
 
 - name: Start monitoring stack
-  shell: docker-compose up -d
+  become: true
+  shell: docker compose up -d
   args:
     chdir: "{{ project_dir }}"
   register: compose_result
 
 - name: Wait for services to be ready
-  shell: docker-compose ps
+  become: true
+  shell: docker compose ps
   args:
     chdir: "{{ project_dir }}"
   register: docker_status

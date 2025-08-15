@@ -30,28 +30,10 @@
     - ../vault/secrets.yml
     - ../group_vars/all.yml
   roles:
-    - common
     - monitoring_stack
     - prometheus_federator
   
   post_tasks:
-    - name: Verify federation endpoints
-      uri:
-        url: "http://localhost:{{ monitoring.prometheus.port }}/api/v1/targets"
-        method: GET
-      register: federation_targets
-      retries: 5
-      delay: 30
-      ignore_errors: yes
-      
-    - name: Display main monitoring URLs
-      debug:
-        msg:
-          - "=== Federation Monitoring URLs ==="
-          - "Main Prometheus (Federation): http://localhost:{{ monitoring.prometheus.port }}"
-          - "Grafana Dashboard: http://localhost:{{ monitoring.grafana.port }}"
-          - "Alertmanager: http://localhost:{{ monitoring.alertmanager.port }}"
-
     - name: Collect remote prometheus instances info
       set_fact:
         remote_instances: "{{ remote_instances | default([]) + [{'host': item, 'ip': hostvars[item]['ansible_host'], 'port': hostvars[item]['prometheus_local_port'] | default(9090)}] }}"

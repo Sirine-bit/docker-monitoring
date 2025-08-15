@@ -1,9 +1,24 @@
----
 - name: restart monitoring stack
+  become: true
   shell: |
-    docker-compose down
-    sleep 5
-    docker-compose up -d
-  args:
-    chdir: "{{ project_dir }}"
-  listen: "restart monitoring stack"
+    cd {{ project_dir }}
+    docker compose down
+    docker compose up -d
+  register: restart_result
+  failed_when: restart_result.rc != 0
+  
+- name: restart prometheus
+  become: true
+  shell: |
+    cd {{ project_dir }}
+    docker compose restart prometheus
+  register: prometheus_restart_result
+  failed_when: prometheus_restart_result.rc != 0
+
+- name: restart alertmanager
+  become: true
+  shell: |
+    cd {{ project_dir }}
+    docker compose restart alertmanager
+  register: alertmanager_restart_result
+  failed_when: alertmanager_restart_result.rc != 0

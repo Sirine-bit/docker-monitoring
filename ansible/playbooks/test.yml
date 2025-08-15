@@ -1,6 +1,0 @@
-- name: Test basic Ansible functionality
-  hosts: desktop
-  gather_facts: yes
-  
-  roles:
-    - common

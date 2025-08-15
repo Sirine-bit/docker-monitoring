@@ -1,9 +1,8 @@
-version: '3.8'
 
 services:
   prometheus:
     image: prom/prometheus:latest
-    container_name: prometheus-local
+    container_name: prometheus-local-{{ inventory_hostname }}
     user: "root"
     ports:
       - "{{ prometheus_local_port }}:9090"
@@ -19,19 +18,29 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--web.enable-lifecycle'
       - '--web.listen-address=0.0.0.0:9090'
-      - '--web.external-url=http://{{ inventory_hostname }}:{{ prometheus_local_port }}'
+      - '--web.external-url=http://{{ ansible_host }}:{{ prometheus_local_port }}'
+      - '--log.level=info'
     restart: unless-stopped
     networks:
       - monitoring
+    depends_on:
+      - node-exporter
+      - cadvisor
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     labels:
       - "monitored=true"
       - "service_type=monitoring"
 
   node-exporter:
     image: prom/node-exporter:latest
-    container_name: node-exporter
+    container_name: node-exporter-{{ inventory_hostname }}
     ports:
-      - "9100:9100"
+      - "{{ monitoring.node_exporter.port }}:9100"
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
@@ -41,90 +50,56 @@ services:
       - '--path.rootfs=/rootfs'
       - '--path.sysfs=/host/sys'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($|/)'
+      - '--web.listen-address=0.0.0.0:9100'
     pid: "host"
     restart: unless-stopped
     networks:
       - monitoring
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9100/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     labels:
       - "monitored=true"
       - "service_type=system"
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
-    container_name: cadvisor
+    container_name: cadvisor-{{ inventory_hostname }}
     ports:
-      - "8080:8080"
+      - "{{ monitoring.cadvisor.port }}:8080"
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
+    command:
+      - '--port=8080'
+      - '--housekeeping_interval=30s'
+      - '--max_housekeeping_interval=35s'
+      - '--event_storage_event_limit=default=0'
+      - '--event_storage_age_limit=default=0'
+      - '--store_container_labels=false'
     privileged: true
     restart: unless-stopped
     networks:
       - monitoring
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     labels:
       - "monitored=true"
       - "service_type=docker"
-{% if service_type == 'web' %}
-  nginx-exporter:
-    image: nginx/nginx-prometheus-exporter:latest
-    container_name: nginx-exporter
-    ports:
-      - "9113:9113"
-    command:
-      - '-nginx.scrape-uri=http://nginx/nginx_status'
-    restart: unless-stopped
-    networks:
-      - monitoring
-    labels:
-      - "monitored=true"
-      - "service_type=nginx"
-{% endif %}
-
-{% if service_type == 'database' %}
-  postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:latest
-    container_name: postgres-exporter
-    ports:
-      - "9187:9187"
-    environment:
-      DATA_SOURCE_NAME: "postgresql://{{ db_user | default('postgres') }}:{{ db_password | default('postgres') }}@postgres:5432/{{ db_name | default('postgres') }}?sslmode=disable"
-    restart: unless-stopped
-    networks:
-      - monitoring
-    labels:
-      - "monitored=true"
-      - "service_type=postgresql"
-    depends_on:
-      - postgres
-
-  postgres:
-    image: postgres:15
-    container_name: postgres
-    environment:
-      POSTGRES_USER: "{{ db_user | default('postgres') }}"
-      POSTGRES_PASSWORD: "{{ db_password | default('postgres') }}"
-      POSTGRES_DB: "{{ db_name | default('postgres') }}"
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
-    networks:
-      - monitoring
-    labels:
-      - "monitored=true"
-      - "service_type=database"
-{% endif %}
 
 volumes:
   prometheus_local_data:
-{% if service_type == 'database' %}
-  postgres_data:
-{% endif %}
+    driver: local
 
 networks:
   monitoring:
     driver: bridge
+    name: monitoring-{{ inventory_hostname }}

@@ -30,31 +30,31 @@ scrape_configs:
       - targets: ['cadvisor:8080']
 
   # Federation depuis tous les Prometheus locaux
-  {% for group_name in groups %}
-  {% if group_name not in ['control', 'ungrouped'] %}
-  {% for host in groups[group_name] %}
-  {% if hostvars[host]['prometheus_local'] is defined and hostvars[host]['prometheus_local'] %}
+{% set added_hosts = [] %}
+{% for group_name in groups %}
+{% if group_name not in ['control', 'ungrouped'] %}
+{% for host in groups[group_name] %}
+{% if hostvars[host]['prometheus_local'] and host not in added_hosts %}
+{% set _ = added_hosts.append(host) %}
   - job_name: 'federation-{{ host }}'
-    scrape_interval: 30s
+    scrape_interval: 60s
+    scrape_timeout: 50s
     honor_labels: true
     metrics_path: '/federate'
     params:
       'match[]':
-        - '{job=~"prometheus|node-exporter|cadvisor|.*-exporter"}'
-        - 'up'
-        - 'node_load1'
-        - 'node_memory_MemAvailable_bytes'
-        - 'node_filesystem_free_bytes'
-        - 'container_cpu_usage_seconds_total'
-        - 'container_memory_usage_bytes'
+        - '{job=~"prometheus|node-exporter|cadvisor"}'
+        - '{__name__=~"up|node_load1|node_memory_MemAvailable_bytes|node_filesystem_free_bytes"}'
+        - '{__name__=~"container_cpu_usage_seconds_total|container_memory_usage_bytes"}'
     static_configs:
       - targets:
-        - '{{ hostvars[host]['ansible_host'] }}:{{ hostvars[host]['prometheus_local_port'] | default(9090) }}'
+          - '{{ hostvars[host]["ansible_host"] }}:{{ hostvars[host]["prometheus_local_port"] | default(9090) }}'
         labels:
           federated_from: '{{ host }}'
-          environment: '{{ hostvars[host]['deployment_env'] }}'
-          service_type: '{{ hostvars[host]['service_type'] | default("unknown") }}'
-  {% endif %}
-  {% endfor %}
-  {% endif %}
-  {% endfor %}
+          environment: '{{ hostvars[host]["deployment_env"] }}'
+          service_type: '{{ hostvars[host]["service_type"] | default("unknown") }}'
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endfor %}
+

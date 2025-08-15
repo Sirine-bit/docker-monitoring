@@ -26,38 +26,38 @@
   notify: restart prometheus local
 
 - name: Validate docker-compose configuration
-  shell: docker-compose config
+  shell: docker compose config
   args:
     chdir: "{{ prometheus_local_dir }}"
   register: compose_config
   changed_when: false
 
 - name: Stop existing containers (if any)
-  shell: docker-compose down
+  shell: docker compose down
   args:
     chdir: "{{ prometheus_local_dir }}"
   ignore_errors: yes
   changed_when: false
 
 - name: Pull latest images
-  shell: docker-compose pull
+  shell: docker compose pull
   args:
     chdir: "{{ prometheus_local_dir }}"
   register: pull_result
   changed_when: "'Pulled' in pull_result.stdout or 'Downloaded' in pull_result.stdout"
 
 - name: Start prometheus stack
-  shell: docker-compose up -d
+  shell: docker compose up -d
   args:
     chdir: "{{ prometheus_local_dir }}"
   register: deploy_result
 
 - name: Wait for services to be ready
-  shell: docker-compose ps
+  shell: docker compose ps
   args:
     chdir: "{{ prometheus_local_dir }}"
   register: services_status
-  retries: 5
+  retries: 10
   delay: 10
   until: "'Up' in services_status.stdout"
 

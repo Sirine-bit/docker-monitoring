@@ -1,129 +1,73 @@
 ---
-- name: Update apt cache
-  apt:
-    update_cache: yes
-    cache_valid_time: 86400
-  become: yes
-
-- name: Install Docker and dependencies
+- name: Supprimer anciens paquets Docker et Compose
   apt:
     name:
       - docker.io
-      - git
+      - docker-doc
+      - docker-compose
+      - docker-compose-plugin
+      - podman-docker
+      - containerd
+      - runc
+      - containerd.io
+    state: absent
+    purge: yes
+    autoremove: yes
+  become: yes
+
+- name: Installer dépendances pour dépôt Docker
+  apt:
+    name:
+      - ca-certificates
       - curl
-      - wget
-      - python3-pip
-      - python3-docker
+      - gnupg
+      - lsb-release
     state: present
     update_cache: yes
   become: yes
 
-- name: Start and enable Docker service
-  systemd:
+- name: Créer répertoire pour clés GPG Docker
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+  become: yes
+
+- name: Télécharger clé GPG Docker et la convertir
+  ansible.builtin.shell: |
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  args:
+    creates: /etc/apt/keyrings/docker.gpg
+  become: yes
+
+- name: Assurer les permissions correctes de la clé GPG
+  file:
+    path: /etc/apt/keyrings/docker.gpg
+    mode: '0644'
+  become: yes
+
+- name: Ajouter dépôt Docker officiel
+  apt_repository:
+    repo: "deb [arch={{ ansible_architecture }} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    state: present
+  become: yes
+
+
+- name: Installer Docker et Docker Compose v2
+  apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+    update_cache: yes
+  become: yes
+
+- name: Activer et démarrer le service Docker
+  service:
     name: docker
     state: started
     enabled: yes
   become: yes
-
-- name: Add user to docker group
-  user:
-    name: "{{ ansible_user }}"
-    groups: docker
-    append: yes
-  become: yes
-  register: docker_group_added
-
-# Clean up any existing Docker Compose installations
-- name: Remove old docker-compose installations
-  file:
-    path: "{{ item }}"
-    state: absent
-  loop:
-    - "/usr/local/bin/docker-compose"
-    - "/usr/bin/docker-compose"
-    - "/usr/local/lib/docker/cli-plugins/docker-compose"
-  become: yes
-
-# Install Docker Compose v2 properly
-- name: Create Docker CLI plugins directory
-  file:
-    path: "/usr/local/lib/docker/cli-plugins"
-    state: directory
-    mode: '0755'
-  become: yes
-
-- name: Get latest Docker Compose version
-  uri:
-    url: https://api.github.com/repos/docker/compose/releases/latest
-    method: GET
-    return_content: yes
-  register: compose_latest_release
-  delegate_to: localhost
-  run_once: true
-
-- name: Set Docker Compose version
-  set_fact:
-    docker_compose_version: "{{ compose_latest_release.json.tag_name }}"
-
-- name: Download Docker Compose v2
-  get_url:
-    url: "https://github.com/docker/compose/releases/download/{{ docker_compose_version }}/docker-compose-linux-x86_64"
-    dest: "/usr/local/lib/docker/cli-plugins/docker-compose"
-    mode: '0755'
-    owner: root
-    group: root
-  become: yes
-
-- name: Create docker-compose symlink for backward compatibility
-  file:
-    src: "/usr/local/lib/docker/cli-plugins/docker-compose"
-    dest: "/usr/local/bin/docker-compose"
-    state: link
-  become: yes
-
-- name: Reset SSH connection to apply group changes
-  meta: reset_connection
-  when: docker_group_added.changed
-
-- name: Wait for Docker to be ready
-  pause:
-    seconds: 10
-
-- name: Test Docker Compose v2 installation
-  shell: docker compose version
-  register: compose_test_v2
-  changed_when: false
-  failed_when: false
-
-- name: Test Docker Compose v1 compatibility
-  shell: docker-compose --version
-  register: compose_test_v1
-  changed_when: false
-  failed_when: false
-
-- name: Display Docker Compose version results
-  debug:
-    msg: |
-      Docker Compose v2 (docker compose): {{ compose_test_v2.stdout if compose_test_v2.rc == 0 else 'FAILED: ' + compose_test_v2.stderr }}
-      Docker Compose v1 compatibility (docker-compose): {{ compose_test_v1.stdout if compose_test_v1.rc == 0 else 'FAILED: ' + compose_test_v1.stderr }}
-
-# CHANGED: Don't fail if docker compose doesn't work - we'll use docker-compose instead
-- name: Check if we should continue with docker-compose fallback
-  set_fact:
-    use_docker_compose_fallback: "{{ compose_test_v2.rc != 0 and compose_test_v1.rc == 0 }}"
-
-- name: Continue with docker-compose compatibility mode
-  debug:
-    msg: "Docker Compose v2 plugin not available, will use docker-compose command compatibility mode"
-  when: use_docker_compose_fallback
-
-- name: Create project directories
-  file:
-    path: "{{ item }}"
-    state: directory
-    owner: "{{ ansible_user }}"
-    group: "{{ ansible_user }}"
-    mode: '0755'
-  loop:
-    - "/home/{{ ansible_user }}/docker-monitoring"
-    - "/home/{{ ansible_user }}/prometheus-local"

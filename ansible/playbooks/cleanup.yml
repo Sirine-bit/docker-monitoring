@@ -1,0 +1,111 @@
+---
+- name: Docker & Docker Compose Cleanup
+  hosts: all
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Stop Docker service if running
+      systemd:
+        name: docker
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+
+    - name: Remove Docker-related packages
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+          - docker.io
+          - docker-compose
+        state: absent
+        purge: yes
+      ignore_errors: yes
+
+    - name: Remove Docker APT repository
+      apt_repository:
+        repo: "deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else ansible_architecture }}] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: absent
+      ignore_errors: yes
+
+    - name: Remove Docker GPG key file
+      file:
+        path: /etc/apt/keyrings/docker.gpg
+        state: absent
+      ignore_errors: yes
+
+    - name: Remove Docker directories and binaries
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /var/lib/docker
+        - /var/lib/containerd
+        - /etc/docker
+        - /usr/local/lib/docker
+        - /usr/libexec/docker
+        - /usr/local/bin/docker-compose
+        - /usr/bin/docker-compose
+        - /var/run/docker.sock
+        - /run/containerd
+      ignore_errors: yes
+
+    - name: Remove user Docker configuration directories
+      file:
+        path: "/home/{{ item }}/.docker"
+        state: absent
+      loop:
+        - vagrant
+        - ubuntu
+        - "{{ ansible_user | default('vagrant') }}"
+      ignore_errors: yes
+
+    - name: Remove docker group from users
+      user:
+        name: "{{ item }}"
+        groups: docker
+        append: no
+        state: present
+      loop:
+        - vagrant
+        - ubuntu
+        - "{{ ansible_user | default('vagrant') }}"
+      ignore_errors: yes
+
+    - name: Remove docker group
+      group:
+        name: docker
+        state: absent
+      ignore_errors: yes
+
+    - name: Clean apt cache and remove unused packages
+      apt:
+        autoclean: yes
+        autoremove: yes
+        purge: yes
+        update_cache: yes
+
+    - name: Check for any remaining Docker processes
+      shell: "ps aux | grep '[d]ocker'"
+      register: docker_processes
+      failed_when: false
+      changed_when: false
+
+    - name: Display remaining Docker processes if any
+      debug:
+        msg: "{{ docker_processes.stdout_lines }}"
+      when: docker_processes.stdout != ""
+
+    - name: Verify if docker command still exists
+      command: which docker
+      register: docker_command
+      failed_when: false
+      changed_when: false
+
+    - name: Display cleanup status
+      debug:
+        msg: "{{ '✅ Docker completely removed' if docker_command.rc != 0 else '⚠️ Docker still present' }}"

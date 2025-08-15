@@ -1,0 +1,236 @@
+---
+- name: Smart Docker & Docker Compose Installer with Detection
+  hosts: all
+  become: yes
+  gather_facts: yes
+  
+  vars:
+    required_docker_version: "20.0"      # Version minimale Docker
+    required_compose_version: "2.0"      # Version minimale Compose
+    docker_compose_version: "v2.27.1"    # Version à installer
+  
+  tasks:
+    # =============================================================================
+    # PHASE 1: DÉTECTION DES INSTALLATIONS EXISTANTES
+    # =============================================================================
+    
+    - name: "🔍 Check if Docker is installed"
+      command: docker --version
+      register: current_docker
+      failed_when: false
+      changed_when: false
+    
+    - name: "🔍 Check if Docker Compose is installed"
+      command: docker compose version
+      register: current_compose
+      failed_when: false
+      changed_when: false
+    
+    - name: "🔍 Check legacy docker-compose (V1)"
+      command: docker-compose --version
+      register: legacy_compose
+      failed_when: false
+      changed_when: false
+    
+    - name: "🔍 Check Docker service status"
+      systemd:
+        name: docker
+      register: docker_service_status
+      failed_when: false
+    
+    # =============================================================================
+    # PHASE 2: ANALYSE DE COMPATIBILITÉ
+    # =============================================================================
+    
+    - name: "📊 Analyze current Docker installation"
+      set_fact:
+        docker_installed: "{{ current_docker.rc == 0 }}"
+        docker_version_raw: "{{ current_docker.stdout.split()[2] if current_docker.rc == 0 else 'none' }}"
+        compose_v2_installed: "{{ current_compose.rc == 0 }}"
+        compose_v1_installed: "{{ legacy_compose.rc == 0 }}"
+        compose_version_raw: "{{ current_compose.stdout.split()[-1] if current_compose.rc == 0 else 'none' }}"
+        docker_service_active: "{{ docker_service_status.status.ActiveState == 'active' if docker_service_status.status is defined else false }}"
+    
+    - name: "📊 Extract clean version numbers"
+      set_fact:
+        docker_version: "{{ docker_version_raw | regex_replace('^(\\d+\\.\\d+).*', '\\1') if docker_installed else '0.0' }}"
+        compose_version: "{{ compose_version_raw | regex_replace('^v?(\\d+\\.\\d+).*', '\\1') if compose_v2_installed else '0.0' }}"
+    
+    - name: "📊 Determine installation strategy"
+      set_fact:
+        needs_cleanup: >-
+          {{
+            (docker_installed and (docker_version | float) < (required_docker_version | float)) or
+            (compose_v1_installed and not compose_v2_installed) or
+            (compose_v2_installed and (compose_version | float) < (required_compose_version | float))
+          }}
+        needs_fresh_install: "{{ not docker_installed or not compose_v2_installed }}"
+        installation_compatible: >-
+          {{
+            docker_installed and 
+            compose_v2_installed and 
+            (docker_version | float) >= (required_docker_version | float) and
+            (compose_version | float) >= (required_compose_version | float) and
+            docker_service_active
+          }}
+    
+    
+    # =============================================================================
+    # PHASE 3: RAPPORT D'ANALYSE
+    # =============================================================================
+    
+    - name: "📋 Installation Analysis Report"
+      debug:
+        msg: |
+          
+          🔍 CURRENT INSTALLATION ANALYSIS:
+          ================================
+          🐳 Docker: {{ 'Installed (' + docker_version + ')' if docker_installed else 'Not installed' }}
+          🔧 Compose V2: {{ 'Installed (' + compose_version + ')' if compose_v2_installed else 'Not installed' }}
+          ⚠️  Compose V1: {{ 'Found (legacy)' if compose_v1_installed else 'Not found' }}
+          🔄 Docker Service: {{ 'Active' if docker_service_active else 'Inactive' }}
+          
+          📊 STRATEGY:
+          ============
+          {{ '✅ Compatible - No action needed' if installation_compatible else
+             '🧹 Cleanup required' if needs_cleanup else
+             '🆕 Fresh installation needed' if needs_fresh_install else
+             '❓ Unknown state' }}
+    
+    # =============================================================================
+    # PHASE 4: EXÉCUTION CONDITIONNELLE
+    # =============================================================================
+    
+    - name: "✅ Skip installation - Already compatible"
+      debug:
+        msg: "Docker {{ docker_version }} and Compose {{ compose_version }} are already compatible. Skipping installation."
+      when: installation_compatible
+    
+    # CLEANUP BLOCK
+    - name: "🧹 Cleanup incompatible installation"
+      include_tasks: cleanup.yml
+      when: needs_cleanup and not installation_compatible
+    
+    # FRESH INSTALLATION BLOCK
+    - name: "🆕 Fresh Docker installation"
+      block:
+        - name: Ensure apt cache is updated
+          apt:
+            update_cache: yes
+        
+        - name: Install prerequisites
+          apt:
+            name:
+              - apt-transport-https
+              - ca-certificates
+              - curl
+              - software-properties-common
+              - gnupg
+              - lsb-release
+            state: present
+        
+        - name: Add Docker GPG key
+          apt_key:
+            url: https://download.docker.com/linux/ubuntu/gpg
+            state: present
+        
+        - name: Add Docker repository
+          apt_repository:
+            repo: "deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else ansible_architecture }}] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+            state: present
+        
+        - name: Install Docker engine with Docker Compose plugin
+          apt:
+            name:
+              - docker-ce
+              - docker-ce-cli
+              - containerd.io
+              - docker-buildx-plugin
+              - docker-compose-plugin
+            state: present
+            update_cache: yes
+        
+        - name: Start and enable Docker service
+          systemd:
+            name: docker
+            state: started
+            enabled: yes
+        
+        - name: Add users to docker group
+          user:
+            name: "{{ item }}"
+            groups: docker
+            append: yes
+          loop:
+            - "{{ ansible_user | default('vagrant') }}"
+            - vagrant
+            - ubuntu
+          ignore_errors: yes
+        
+        # FALLBACK INSTALLATION
+        - name: Check Docker Compose installation
+          command: docker compose version
+          register: compose_final_check
+          failed_when: false
+          changed_when: false
+        
+        - name: Fallback manual installation
+          block:
+            - name: Create Docker CLI plugins directory
+              file:
+                path: /usr/libexec/docker/cli-plugins
+                state: directory
+                mode: '0755'
+            
+            - name: Download Docker Compose binary
+              get_url:
+                url: "https://github.com/docker/compose/releases/download/{{ docker_compose_version }}/docker-compose-linux-{{ 'x86_64' if ansible_architecture == 'x86_64' else ansible_architecture }}"
+                dest: /usr/libexec/docker/cli-plugins/docker-compose
+                mode: '0755'
+                force: yes
+            
+            - name: Create compatibility symlink
+              file:
+                src: /usr/libexec/docker/cli-plugins/docker-compose
+                dest: /usr/local/bin/docker-compose
+                state: link
+          
+          when: compose_final_check.rc != 0
+      
+      when: (needs_fresh_install or needs_cleanup) and not installation_compatible
+    
+    # =============================================================================
+    # PHASE 5: VÉRIFICATION FINALE
+    # =============================================================================
+    
+    - name: "🧪 Final verification"
+      block:
+        - name: Verify Docker installation
+          command: docker --version
+          register: final_docker_check
+          changed_when: false
+        
+        - name: Verify Docker Compose installation
+          command: docker compose version
+          register: final_compose_check
+          changed_when: false
+        
+        - name: Test Docker functionality
+          command: docker run --rm hello-world
+          register: docker_functionality_test
+          changed_when: false
+          ignore_errors: yes
+        
+        - name: "📊 Final Installation Report"
+          debug:
+            msg: |
+              
+              🎉 INSTALLATION COMPLETE:
+              =========================
+              🐳 Docker: {{ final_docker_check.stdout }}
+              🔧 Compose: {{ final_compose_check.stdout }}
+              🧪 Test: {{ 'SUCCESS ✅' if docker_functionality_test.rc == 0 else 'FAILED ❌ (may need logout/login)' }}
+              
+              💡 Next steps:
+              - Logout/login or restart VM for group changes
+              - Test with: docker compose version

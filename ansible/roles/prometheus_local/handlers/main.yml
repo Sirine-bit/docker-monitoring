@@ -1,8 +1,14 @@
----
 - name: restart prometheus local
   shell: |
-    docker-compose down
-    docker-compose up -d
-  args:
-    chdir: "{{ prometheus_local_dir }}"
-  listen: "restart prometheus local"
+    cd {{ prometheus_local_dir }}
+    docker compose down
+    docker compose up -d
+  register: local_restart_result
+  failed_when: local_restart_result.rc != 0
+  
+- name: reload prometheus local config
+  shell: |
+    cd {{ prometheus_local_dir }}
+    docker compose exec -T prometheus killall -HUP prometheus || docker compose restart prometheus
+  register: reload_result
+  failed_when: false  # HUP might fail, restart is fallback

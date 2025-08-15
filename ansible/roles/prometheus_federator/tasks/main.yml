@@ -6,7 +6,8 @@
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: '0644'
-  notify: restart monitoring stack
+    backup: yes
+  notify: restart prometheus
 
 - name: Generate federation alert rules
   template:
@@ -15,4 +16,29 @@
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: '0644'
-  notify: restart monitoring stack
+  notify: restart prometheus
+
+- name: Wait for prometheus restart
+  wait_for:
+    host: "{{ ansible_host if ansible_host != 'localhost' else '127.0.0.1' }}"
+    port: "{{ monitoring.prometheus.port }}"
+    delay: 10
+    timeout: 60
+
+- name: Verify federation targets
+  uri:
+    url: "http://{{ ansible_host if ansible_host != 'localhost' else '127.0.0.1' }}:{{ monitoring.prometheus.port }}/api/v1/targets"
+    method: GET
+    timeout: 30
+  register: federation_targets
+  retries: 3
+  delay: 10
+  ignore_errors: yes
+
+- name: Display federation status
+  debug:
+    msg: |
+      🔗 Federation Configuration: {{ 'SUCCESS ✅' if federation_targets is succeeded else 'FAILED ❌' }}
+      📊 Total Targets: {{ federation_targets.json.data.activeTargets | length + federation_targets.json.data.droppedTargets | length if federation_targets is succeeded else 'N/A' }}
+      ✅ Active Targets: {{ federation_targets.json.data.activeTargets | length if federation_targets is succeeded else 'N/A' }}
+      ❌ Dropped Targets: {{ federation_targets.json.data.droppedTargets | length if federation_targets is succeeded else 'N/A' }}

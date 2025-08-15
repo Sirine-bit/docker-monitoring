@@ -8,11 +8,35 @@ global:
     environment: '{{ deployment_env }}'
 
 scrape_configs:
-  # Auto-découverte des conteneurs Docker
+  # Prometheus itself
+  - job_name: 'prometheus-local'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          instance_type: 'prometheus'
+          environment: '{{ deployment_env }}'
+
+  # Node exporter local - utiliser le nom du service Docker
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          instance_type: '{{ service_type }}'
+          environment: '{{ deployment_env }}'
+
+  # cAdvisor pour les métriques Docker - utiliser le nom du service Docker
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          instance_type: 'docker-metrics'
+          environment: '{{ deployment_env }}'
+
+  # Auto-découverte des conteneurs Docker avec correction du port mapping
   - job_name: 'docker-containers'
     docker_sd_configs:
       - host: unix:///var/run/docker.sock
-        refresh_interval: 5s
+        refresh_interval: 30s
         filters:
           - name: label
             values: ["monitored=true"]
@@ -27,46 +51,23 @@ scrape_configs:
       - source_labels: [__meta_docker_container_name]
         target_label: container_name
       
-      # Ajouter le type de service
+      # Ajouter le type de service depuis le label
       - source_labels: [__meta_docker_container_label_service_type]
         target_label: service_type
-        replacement: '{{ service_type }}'
       
-      # Port mapping dynamique
-      - source_labels: [__meta_docker_port_private]
+      # Correction du port mapping - utiliser l'IP du conteneur + port privé
+      - source_labels: [__meta_docker_network_ip, __meta_docker_port_private]
+        regex: '([^:]+):(\d+)'
         target_label: __address__
-        regex: '(\d+)'
-        replacement: 'localhost:${1}'
-
-  # Node exporter local
-  - job_name: 'node-exporter'
-    static_configs:
-      - targets: ['localhost:9100']
-        labels:
-          instance_type: '{{ service_type }}'
-          environment: '{{ deployment_env }}'
-
-  # cAdvisor pour les métriques Docker
-  - job_name: 'cadvisor'
-    static_configs:
-      - targets: ['localhost:8080']
-        labels:
-          instance_type: 'docker-metrics'
-          environment: '{{ deployment_env }}'
-
-  # Métriques applicatives spécifiques selon le type de service
-  {% if service_type == 'web' %}
-  - job_name: 'nginx-exporter'
-    static_configs:
-      - targets: ['localhost:9113']
-        labels:
-          service_type: 'nginx'
-  {% endif %}
-
-  {% if service_type == 'database' %}
-  - job_name: 'postgres-exporter'
-    static_configs:
-      - targets: ['localhost:9187']
-        labels:
-          service_type: 'postgresql'
-  {% endif %}
+        replacement: '${1}:${2}'
+      
+      # Si pas de port privé trouvé, utiliser le nom du service + port par défaut
+      - source_labels: [__meta_docker_container_name]
+        target_label: __address__
+        regex: '(.*)'
+        replacement: '${1}:9100'
+        
+      # Exclure les conteneurs prometheus, cadvisor et node-exporter déjà scrapés
+      - source_labels: [__meta_docker_container_name]
+        regex: '(prometheus-local-.*|cadvisor-.*|node-exporter-.*)'
+        action: drop
