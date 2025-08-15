@@ -2,85 +2,51 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
   external_labels:
-    cluster: 'desktop-monitoring'
+    cluster: 'federation-control'
     region: 'local'
 
 rule_files:
   - "alert_rules.yml"
+  - "federation_alert_rules.yml"
 
 alerting:
   alertmanagers:
     - static_configs:
         - targets:
-          - alertmanager:9093
+          - "alertmanager:9093"
 
 scrape_configs:
-  # Service locaux du desktop
-  - job_name: 'prometheus'
+  # Scraping local monitoring stack
+  - job_name: 'prometheus-federator'
     static_configs:
       - targets: ['localhost:9090']
-        labels:
-          instance_type: 'prometheus-desktop'
 
-  - job_name: 'node-exporter'
+  - job_name: 'node-exporter-control'
     static_configs:
       - targets: ['node-exporter:9100']
-        labels:
-          instance_type: 'desktop'
 
-  - job_name: 'cadvisor'
+  - job_name: 'cadvisor-control'
     static_configs:
       - targets: ['cadvisor:8080']
-        labels:
-          instance_type: 'desktop'
-  # Docker containers avec métriques custom (local)
- 
-  - job_name: 'docker-containers'
-    docker_sd_configs:
-      - host: unix:///var/run/docker.sock
-        refresh_interval: 5s
-        filters:
-          - name: label
-            values: ["monitored=true"]
-    
-    relabel_configs:
-      # Extraire le port depuis le label prometheus_port
-      - source_labels: [__meta_docker_container_label_prometheus_port]
-        target_label: __tmp_port
-        regex: (.+)
-        replacement: ${1}
-      
-      # Construire l'adresse avec l'IP du réseau desktop_monitoring et le port
-      - source_labels: [__meta_docker_container_network_ip_docker-monitoring_monitoring, __tmp_port]
-        target_label: __address__
-        regex: ([^;]+);(.+)
-        replacement: ${1}:${2}
-      
-      # Définir le chemin des métriques depuis le label
-      - source_labels: [__meta_docker_container_label_metrics_path]
-        target_label: __metrics_path__
-        regex: (.+)
-        replacement: ${1}
-      
-      # Définir le nom de l'instance depuis le nom du conteneur
-      - source_labels: [__meta_docker_container_name]
-        target_label: instance
-        regex: /(.+)
-        replacement: ${1}
-      
-      # Ajouter le nom de l'image comme label
-      - source_labels: [__meta_docker_container_label_image]
-        target_label: image
-        regex: (.+)
-        replacement: ${1}
-      
-      # Supprimer les targets sans adresse valide
-      - source_labels: [__address__]
-        regex: ':.*'
-        action: drop
-  # Connexion au prometheus central (pour monitorer le fédérateur et voir son état)
-  - job_name: 'prometheus-central'
+
+  # Federation depuis tous les Prometheus locaux
+  - job_name: 'federation-web-dev'
+    scrape_interval: 30s
+    honor_labels: true
+    metrics_path: '/federate'
+    params:
+      'match[]':
+        - '{job=~"prometheus|node-exporter|cadvisor|.*-exporter"}'
+        - 'up'
+        - 'node_load1'
+        - 'node_memory_MemAvailable_bytes'
+        - 'node_filesystem_free_bytes'
+        - 'container_cpu_usage_seconds_total'
+        - 'container_memory_usage_bytes'
     static_configs:
-      - targets: ['192.168.100.73:19090']
+      - targets:
+        - '192.168.56.40:9090'
         labels:
-          instance_type: 'prometheus-central' 
+          federated_from: 'web-dev'
+          environment: 'development'
+          service_type: 'web'

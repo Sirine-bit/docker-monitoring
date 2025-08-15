@@ -1,0 +1,25 @@
+---
+groups:
+  - name: federation.rules
+    rules:
+      # Alertes spécifiques à la fédération
+      - alert: FederatedInstanceDown
+        expr: up{job=~"federation-.*"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: federation
+        annotations:
+          summary: "Federated Prometheus instance {{ $labels.federated_from }} is down"
+          description: "The Prometheus instance on {{ $labels.federated_from }} has been down for more than 2 minutes. Federation data collection is interrupted."
+
+      - alert: FederationScrapeFailure
+        expr: up{job=~"federation-.*"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          component: federation
+        annotations:
+          summary: "Federation scrape failing for {{ $labels.federated_from }}"
+          description: "Cannot scrape metrics from {{ $labels.federated_from }} for more than 5 minutes."
+

@@ -1,39 +1,29 @@
 groups:
-  - name: container-health
+  - name: alert.rules
     rules:
-      - alert: NodeDown
+      - alert: InstanceDown
         expr: up == 0
         for: 1m
         labels:
-          serverity: critical
+          severity: critical
         annotations:
-          summary: "Instance {{ $labels.instance }} is down"
-          description: "Prometheus target {{ $labels.instance }} is unreachable."
+          summary: "Instance {{ $labels.instance }} down"
+          description: "{{ $labels.instance }} of job {{ $labels.job }} has been down for more than 1 minute."
 
       - alert: HighCPUUsage
-        expr: rate(container_cpu_usage_seconds_total{container!=""}[1m]) * 100 > 80
-        for: 1m
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 2m
         labels:
-          serverity: warning
+          severity: warning
         annotations:
-          summary: "High CPU usage on container {{ $labels.container }}"
-          description: "Container {{ $labels.container }} is using high CPU for 1 minute (> 80%)"
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is above 90% (current value: {{ $value }}%) on {{ $labels.instance }}."
 
-      - alert: SimulatedAlert
-        expr: vector(1)
-        for: 30s
+      - alert: LowDiskSpace
+        expr: (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"} * 100) < 10
+        for: 5m
         labels:
-          serverity: info
+          severity: warning
         annotations:
-          summary: "This is a simulated alert"
-          description: "This alert is used to test the alerting pipeline" 
-
-      - alert: FederationDown
-        expr: up{job="prometheus-central"} == 0
-        for: 1m
-        labels:
-          serverity: critical
-          source: federation
-        annotations:
-          summary: "Federation to central Prometheus is down"
-          description: "Cannot reach central Prometheus Server"
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Disk space is below 10% on {{ $labels.instance }} (mount point: {{ $labels.mountpoint }})."

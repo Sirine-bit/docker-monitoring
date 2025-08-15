@@ -1,2 +1,24 @@
-grafana-data/
-grafana-data/
+prometheus-data
+grafana-data
+#logs
+*.log
+#Secrets
+.env
+*.key
+*.pem
+#Ansible
+ansible/*.retry
+ansible/vault/.vault_pass
+ansible/vault/vault_password_file
+# OS
+.DS_Store
+Thumbs.db
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+# temporary files
+*.tmp
+*.bak
+*.backup

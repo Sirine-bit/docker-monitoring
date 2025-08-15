@@ -1,5 +1,6 @@
 global:
   resolve_timeout: 5m
+
 route:
   receiver: 'default'
   group_wait: 10s
@@ -16,3 +17,4 @@ receivers:
         auth_password: 'vupiggnamiabvipg'
         auth_identity: 'maknisirine52@gmail.com'
         require_tls: true
+
