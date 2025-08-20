@@ -30,23 +30,72 @@ scrape_configs:
       - targets: ['cadvisor:8080']
 
   # Federation depuis tous les Prometheus locaux
-  - job_name: 'federation-web-dev'
-    scrape_interval: 30s
+  - job_name: 'federation-web-prod-01'
+    scrape_interval: 60s
+    scrape_timeout: 50s
     honor_labels: true
     metrics_path: '/federate'
     params:
       'match[]':
-        - '{job=~"prometheus|node-exporter|cadvisor|.*-exporter"}'
-        - 'up'
-        - 'node_load1'
-        - 'node_memory_MemAvailable_bytes'
-        - 'node_filesystem_free_bytes'
-        - 'container_cpu_usage_seconds_total'
-        - 'container_memory_usage_bytes'
+        - '{job=~"prometheus|node-exporter|cadvisor"}'
+        - '{__name__=~"up|node_load1|node_memory_MemAvailable_bytes|node_filesystem_free_bytes"}'
+        - '{__name__=~"container_cpu_usage_seconds_total|container_memory_usage_bytes"}'
     static_configs:
       - targets:
-        - '192.168.56.40:9090'
+          - '192.168.56.20:9090'
         labels:
-          federated_from: 'web-dev'
-          environment: 'development'
+          federated_from: 'web-prod-01'
+          environment: 'production'
           service_type: 'web'
+  - job_name: 'federation-web-prod-02'
+    scrape_interval: 60s
+    scrape_timeout: 50s
+    honor_labels: true
+    metrics_path: '/federate'
+    params:
+      'match[]':
+        - '{job=~"prometheus|node-exporter|cadvisor"}'
+        - '{__name__=~"up|node_load1|node_memory_MemAvailable_bytes|node_filesystem_free_bytes"}'
+        - '{__name__=~"container_cpu_usage_seconds_total|container_memory_usage_bytes"}'
+    static_configs:
+      - targets:
+          - '192.168.56.21:9090'
+        labels:
+          federated_from: 'web-prod-02'
+          environment: 'production'
+          service_type: 'web'
+  - job_name: 'federation-db-prod'
+    scrape_interval: 60s
+    scrape_timeout: 50s
+    honor_labels: true
+    metrics_path: '/federate'
+    params:
+      'match[]':
+        - '{job=~"prometheus|node-exporter|cadvisor"}'
+        - '{__name__=~"up|node_load1|node_memory_MemAvailable_bytes|node_filesystem_free_bytes"}'
+        - '{__name__=~"container_cpu_usage_seconds_total|container_memory_usage_bytes"}'
+    static_configs:
+      - targets:
+          - '192.168.56.25:9090'
+        labels:
+          federated_from: 'db-prod'
+          environment: 'production'
+          service_type: 'database'
+  - job_name: 'federation-nginx-prod'
+    scrape_interval: 60s
+    scrape_timeout: 50s
+    honor_labels: true
+    metrics_path: '/federate'
+    params:
+      'match[]':
+        - '{job=~"prometheus|node-exporter|cadvisor"}'
+        - '{__name__=~"up|node_load1|node_memory_MemAvailable_bytes|node_filesystem_free_bytes"}'
+        - '{__name__=~"container_cpu_usage_seconds_total|container_memory_usage_bytes"}'
+    static_configs:
+      - targets:
+          - '192.168.56.26:9090'
+        labels:
+          federated_from: 'nginx-prod'
+          environment: 'production'
+          service_type: 'proxy'
+

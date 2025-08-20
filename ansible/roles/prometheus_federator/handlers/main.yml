@@ -1,4 +1,6 @@
 - name: restart federation prometheus
+  become: true
+  
   shell: |
     cd {{ project_dir }}
     docker compose restart prometheus
