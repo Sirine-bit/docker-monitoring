@@ -1,4 +1,3 @@
 ---
-- import_playbook: cleanup.yml
-- import_playbook: deploy_infrastructure.yml
+- import_playbook: smart-docker-installer.yml
 - import_playbook: deploy_monitoring.yml
