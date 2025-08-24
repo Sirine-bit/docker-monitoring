@@ -38,54 +38,7 @@ The stack includes:
 
 ### High-Level Architecture
 
-```mermaid
-graph TB
-    subgraph "Control Node"
-        AN[Ansible Controller]
-        VG[Vagrant]
-    end
-    
-    subgraph "VM Cluster"
-        subgraph "VM1 - Ubuntu Server"
-            NE1[Node Exporter:9100]
-            CA1[cAdvisor:8080]
-            PL1[Prometheus Local:9090]
-            DC1[Docker Containers]
-            
-            NE1 --> PL1
-            CA1 --> PL1
-            DC1 --> CA1
-        end
-        
-        subgraph "VM2 - Ubuntu Server"
-            NE2[Node Exporter:9100]
-            CA2[cAdvisor:8080]
-            PL2[Prometheus Local:9090]
-            DC2[Docker Containers]
-            
-            NE2 --> PL2
-            CA2 --> PL2
-            DC2 --> CA2
-        end
-        
-        subgraph "VM Central - Ubuntu Desktop"
-            PF[Prometheus Federation:9090]
-            GF[Grafana:3000]
-            AM[AlertManager:9093]
-            
-            PL1 --> PF
-            PL2 --> PF
-            PF --> GF
-            PF --> AM
-        end
-    end
-    
-    AN --> VM1
-    AN --> VM2
-    AN --> VM Central
-    VG --> VM1
-    VG --> VM2
-```
+![architecture](/docs/Blank diagram.png)
 
 ### Data Flow Architecture
 
@@ -115,19 +68,19 @@ sequenceDiagram
 ## 🖥️ User Interfaces
 
 ### Prometheus Federation UI
-![Prometheus UI](/home/sirine/docker-monitoring/docs/prometheus-federation.png)
-![Prometheus UI](/home/sirine/docker-monitoring/docs/local_prometheus.png)
+![Prometheus UI](/docs/prometheus-federation.png)
+![Prometheus UI](/docs/local_prometheus.png)
 *The Prometheus federation interface showing metrics collection from multiple nodes with service discovery*
 
 ### Grafana Custom Dashboards
 
-![Grafana System](/home/sirine/docker-monitoring/docs/grafana-node_exporter.png.png)
-![Grafana System](/home/sirine/docker-monitoring/docs/grafana-cadvisor.png)
+![Grafana System](/docs/grafana-node_exporter.png.png)
+![Grafana System](/docs/grafana-cadvisor.png)
 
 *System-level monitoring dashboard showing CPU, memory, and disk usage *
 
-![Grafana Dashboard](/home/sirine/docker-monitoring/docs/grafana-automated_discovery.png)
-![Grafana Dashboard](/home/sirine/docker-monitoring/docs/grafana-memory_usage.png)
+![Grafana Dashboard](/docs/grafana-automated_discovery.png)
+![Grafana Dashboard](/docs/grafana-memory_usage.png)
 
 *Dynamic Grafana dashboard displaying real-time container metrics with custom filtering by labels*
 
@@ -156,33 +109,33 @@ sequenceDiagram
 ### Container Discovery & Labeling
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 flowchart LR
-    subgraph "Docker Environment"
-        C1[Container A<br/>label: monitored=true]
-        C2[Container B<br/>label: monitored=false]
-        C3[Container C<br/>no labels]
-    end
-    
-    subgraph "Prometheus Discovery"
-        SD[Service Discovery]
-        RF[Relabel Config]
-    end
-    
-    subgraph "Monitoring Stack"
-        PM[Prometheus Metrics]
-        GD[Grafana Dashboards]
-    end
-    
+ subgraph subGraph0["Docker Environment"]
+        C1["Container A<br>label: monitored=true"]
+        C2["Container B<br>label: monitored=false"]
+        C3["Container C<br>no labels"]
+  end
+ subgraph subGraph1["Prometheus Discovery"]
+        SD["Service Discovery"]
+        RF["Relabel Config"]
+  end
+ subgraph subGraph2["Monitoring Stack"]
+        PM["Prometheus Metrics"]
+        GD["Grafana Dashboards"]
+  end
     C1 --> SD
     C2 --> SD
     C3 --> SD
     SD --> RF
     RF --> PM
     PM --> GD
-    
-    RF -.->|Filter: monitored=true| C1
-    RF -.->|Ignore| C2
-    RF -.->|Ignore| C3
+    RF -. "Filter: monitored=true" .-> C1
+    RF -. Ignore .-> C2 & C3
+
 ```
 
 ### Alert Configuration Matrix
@@ -323,31 +276,33 @@ ansible-playbook -i inventory/dev/hosts.yml playbooks/site.yml
 ### Ansible Role Structure
 
 ```mermaid
-graph TB
-    subgraph "Ansible Roles"
-        CR[common<br/>📦 System prep]
-        SDI[smart-docker-installer<br/>🐳 Docker setup]
-        MS[monitoring_stack<br/>📊 Complete stack]
-        PL[prometheus_local<br/>🎯 Local metrics]
-        PF[prometheus_federator<br/>🌐 Federation]
-    end
-    
-    subgraph "Templates"
-        T1[prometheus.yml.j2]
-        T2[docker-compose.yml.j2]
-        T3[grafana-datasource.yml.j2]
-        T4[alert-rules.yml.j2]
-    end
-    
-    CR --> SDI
-    SDI --> MS
-    MS --> PL
-    PL --> PF
-    
-    MS --> T1
-    MS --> T2
-    MS --> T3
-    PF --> T4
+flowchart TB
+ subgraph subGraph0["Ansible Role Structure"]
+        CR["common<br>📦 System prep for VM desktop"]
+        SDI["smart-docker-installer(playbook)<br>🐳 Docker setup"]
+        PF["prometheus_federator<br>🌐 Federation"]
+        MS["monitoring_stack<br>📊 Complete stack"]
+        PL["prometheus_local<br>🎯 Local metrics for each VM server"]
+        n1["deploy_monitoring (playbook)"]
+  end
+ subgraph Templates["Templates"]
+        T1["prometheus.yml.j2"]
+        T2["docker-compose.yml.j2"]
+        T3["alertmanager.yml.j2"]
+        T4["alert-rules.yml.j2"]
+        T5["grafana-datasource.yml.j2"]
+  end
+    MS --> T1 & T2 & T3 & PF & T4
+    PF --> T5
+    CR --> MS
+    SDI --> n1
+    n1 --> PL & CR
+
+    style CR stroke:#2962FF
+    style PF stroke:#2962FF
+    style MS stroke:#2962FF
+    style PL stroke:#2962FF
+
 ```
 
 ### Environment Variables
