@@ -14,7 +14,7 @@
 
 ## 📌 Overview
 This project delivers a **complete monitoring and alerting solution** for Docker infrastructures.  
-It evolves from **manual deployment** of monitoring tools to a **federated multi-VM architecture**, and finally to a **fully automated solution** using **Ansible** and **Vagrant**.  
+It evolves from **manual deployment** of monitoring tools (in the master branch) to a **federated multi-VM architecture**, and finally to a **fully automated solution** using **Ansible** and **Vagrant**.  
 
 The stack includes:
 - **Prometheus** for time-series metrics collection  
@@ -56,7 +56,7 @@ The stack includes:
 ![Grafana System](docs/grafana-node_exporter.png.png)
 ![Grafana System](docs/grafana-cadvisor.png)
 
-*System-level monitoring dashboard showing CPU, memory, and disk usage *
+*System-level monitoring dashboard showing CPU, memory, and disk usage*
 
 ![Grafana Dashboard](docs/grafana-automated_discovery.png)
 ![Grafana Dashboard](docs/grafana-memory_usage.png)
@@ -435,8 +435,9 @@ git push origin feature/amazing-feature
 
 **Sirine Makni** - *Engineering Student @ SUP'COM, Tunis*
 
-[![LinkedIn](https://www.linkedin.com/in/sirine-makni-9367752a3/)
-[![GitHub](https://github.com/Sirine-bit)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Sirine-blue?logo=linkedin&logoColor=white)](https://www.linkedin.com/in/sirine-makni-9367752a3/)
+[![GitHub](https://img.shields.io/badge/GitHub-Sirine-black?logo=github&logoColor=white)](https://github.com/Sirine-bit)
+
 
 
 
