@@ -1,6 +1,27 @@
 ---
 
-
+- name: Deploy local monitoring on target nodes
+  hosts: all:!control 
+  gather_facts: yes 
+  vars_files: 
+     - ../vault/secrets.yml 
+     - ../group_vars/all.yml 
+  roles: 
+  - prometheus_local 
+  post_tasks: 
+     - name: Verify prometheus local is accessible 
+       uri: 
+        url: "http://{{ ansible_host }}:{{ prometheus_local_port }}/-/healthy" 
+        method: GET 
+       register: prometheus_targets 
+       retries: 5 
+       delay: 30 
+       ignore_errors: yes
+     - name: Display local prometheus status 
+       debug: 
+         msg: "Prometheus local accessible at http://{{ ansible_host }}:{{ prometheus_local_port }}"
+         when: prometheus_targets is succeeded
+         
 - name: Deploy federation monitoring on control node
   hosts: control
   gather_facts: yes
@@ -8,6 +29,7 @@
     - ../vault/secrets.yml
     - ../group_vars/all.yml
   roles:
+    - monitoring_stack 
     - prometheus_federator
   
   post_tasks:
