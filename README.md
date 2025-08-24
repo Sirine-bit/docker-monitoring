@@ -33,16 +33,50 @@ The stack includes:
 - Ensure a **scalable, portable, and reproducible infrastructure**.  
 
 ---
+## 📂 Project Structure
 
+```
+docker-monitoring/
+├── 📁 ansible/                    # Ansible automation
+│   ├── ansible.cfg                 # Ansible configuratio
+│   ├── 📁inventory                
+│   ├── 📁playbooks
+│   │   ├── cleanup.yml                # Environment cleanup
+│   │   ├── deploy_infrastructure.yml  # install the correct version  
+│   │   ├── deploy_monitoring.yml 
+│   │   └── site.yml                  # Full deployment
+│   │   └── smart-docker-installer.yml   # Verify installation/install the correct version  
+│   ├── 📁 roles/
+│   │   ├── 📁 common/
+│   │   ├── 📁 monitoring_stack/   
+│   │   ├── 📁 prometheus_local/   
+│   │   └── 📁 prometheus_federator/ 
+│   ├── 📁 group_vars/
+│   │   └── all.yml                # Global variables
+│   └── 📁 vault/                  # security of data
+├── 📁 custom-app                  # Custom app deploy
+├── ├── docker-comose.yml
+│   ├── alertmanager.yml
+│   ├── prometheus.yml             # Main configuration for VM desktop
+│   ├── federation_alert_rules.yml # Alert rules
+│   ├── alert_rules.yml 
+├── 📁 scripts/                    # Automation scripts           
+├── 📁 vagrant/
+│   └── Vagrantfile               # VM definitions
+├── 📁 docs/                      # Documentation
+└── README.md                     # This file
+└── requirements.yml                 
+```
+---
 ## 🏗️ System Architecture
 
 ### High-Level Architecture
 
-![architecture](docs/Blank diagram.png)
+![architecture](docs/Blank_diagram.png)
 
 ### Data Flow Architecture
 
-![Data Flow Architecture](docs/Data Flow Architecture.png)
+![Data Flow Architecture](docs/Data_Flow_Architecture.png)
 
 ## 🖥️ User Interfaces
 
@@ -124,42 +158,6 @@ The stack includes:
 | **Jinja2** | Template Engine | Dynamic Configs |
 | **Bash** | Automation Scripts | Container Simulation |
 
----
-
-## 📂 Project Structure
-
-```
-docker-monitoring/
-├── 📁 ansible/                    # Ansible automation
-│   ├── ansible.cfg                 # Ansible configuratio
-│   ├── 📁inventory                
-│   ├── 📁playbooks
-│   │   ├── cleanup.yml                # Environment cleanup
-│   │   ├── deploy_infrastructure.yml  # Verify installation/install the corect version  
-│   │   ├── deploy_monitoring.yml 
-│   │   └── site.yml                  # Full deployment
-│   │   └── smart-docker-installer.yml       
-│   ├── 📁 roles/
-│   │   ├── 📁 common/
-│   │   ├── 📁 monitoring_stack/   
-│   │   ├── 📁 prometheus_local/   
-│   │   └── 📁 prometheus_federator/ 
-│   ├── 📁 group_vars/
-│   │   └── all.yml                # Global variables
-│   └── 📁 vault/                  # security of data
-├── 📁 custom-app                  # Custom app deploy
-├── ├── docker-comose.yml
-│   ├── alertmanager.yml
-│   ├── prometheus.yml             # Main configuration for VM desktop
-│   ├── federation_alert_rules.yml # Alert rules
-│   ├── alert_rules.yml 
-├── 📁 scripts/                    # Automation scripts           
-├── 📁 vagrant/
-│   └── Vagrantfile               # VM definitions
-├── 📁 docs/                      # Documentation
-└── README.md                     # This file
-└── requirements.yml                 
-```
 
 ---
 
@@ -226,7 +224,7 @@ ansible-playbook -i inventory/dev/hosts.yml playbooks/site.yml
 
 ### Ansible Role Structure
 
-![Ansible Role Structure](docs/Ansible Role Structure.png)
+![Ansible Role Structure](docs/Ansible_Role_Structure.png)
 
 ### Environment Variables
 
