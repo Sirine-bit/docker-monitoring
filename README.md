@@ -180,8 +180,11 @@ Before starting, ensure you have:
 # Clone the repository
 git clone https://github.com/Sirine-bit/docker-monitoring.git
 cd docker-monitoring
+# for a manual testing (move on to the master branch)
+git checkout master
 docker compose down
 docker comopse up -d
+# for automated deployment (rest in the default branch, which is feature/federation)
 ```
 
 ### 3️⃣ VM Provisioning
@@ -200,7 +203,7 @@ vagrant status
 ### 4️⃣ Ansible Deployment
 
 ```bash
-# Navigate to Ansible directory
+# Navigate to Ansible directory 
 cd ../ansible/
 
 # Test connectivity
