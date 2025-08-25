@@ -121,7 +121,7 @@ docker-monitoring/
 
 ### Container Discovery & Labeling
 
-![Container Discovery & Labeling](docs/Container Discovery & Labeling.png)
+![Container Discovery & Labeling](docs/Container_Discovery_Labeling.png)
 
 ### Alert Configuration Matrix
 
