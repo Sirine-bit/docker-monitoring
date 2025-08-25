@@ -378,6 +378,7 @@ sudo ufw allow 9090/tcp
 
 ### Phase 1: Foundation ✅
 - [x] Basic monitoring stack
+- [x] Alerting (emails)
 - [x] Docker service discovery  
 - [x] Ansible automation
 - [x] Multi-VM federation
@@ -429,6 +430,8 @@ git push origin feature/amazing-feature
 - Ansible-based reproducible deployments
 
 - Scalable and production-ready design
+
+- Alerting solution using emails
 
 ---
 
